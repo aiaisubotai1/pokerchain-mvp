@@ -1,7 +1,11 @@
-const WebSocket = require("ws");
 const http = require("http");
+const WebSocket = require("ws");
 
-const server = http.createServer();
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("PokerChain is live");
+});
+
 const wss = new WebSocket.Server({ server });
 
 let state = {
@@ -46,6 +50,8 @@ function startHand() {
 }
 
 function next() {
+  if (state.players.length === 0) return;
+
   state.active = (state.active + 1) % state.players.length;
 
   if (state.active === 0) {
@@ -55,15 +61,16 @@ function next() {
   }
 }
 
-wss.on("connection", ws => {
-  ws.id = Math.random().toString(36).slice(2,7);
+wss.on("connection", (ws) => {
+  ws.id = Math.random().toString(36).slice(2, 7);
 
   state.players.push({ id: ws.id });
-  broadcast();
 
   ws.send(JSON.stringify({ type: "id", id: ws.id }));
 
-  ws.on("message", msg => {
+  broadcast();
+
+  ws.on("message", (msg) => {
     const tx = JSON.parse(msg);
     const idx = state.players.findIndex(p => p.id === ws.id);
 
@@ -77,8 +84,11 @@ wss.on("connection", ws => {
 
     broadcast();
   });
+
+  ws.on("close", () => {
+    state.players = state.players.filter(p => p.id !== ws.id);
+  });
 });
 
-server.listen(process.env.PORT || 3000, () =>
-  console.log("PokerChain running")
-);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log("PokerChain running on", PORT));
